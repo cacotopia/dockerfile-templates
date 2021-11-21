@@ -40,17 +40,40 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositorie
 #     # libssl-dev \
 #     # clang
 
-RUN ["apk","update"]
-RUN ["apk","add","curl"]
-RUN ["apk","add","unzip"]
-RUN ["apk","add","cmake"]
+# Dependencies
+
+# RUN ["apk","update"]
+# RUN ["apk","add","curl"]
+# RUN ["apk","add","unzip"]
+# RUN ["apk","add","cmake"]
 
 RUN apk update && \
-    # apk add --no-cache --update curl  && \
-    # apk add --no-cache --update unzip  && \
-    # apk add --no-cache --update cmake  && \
+    apk add --no-cache --update \
+    bash \
+    git \
+    curl \
+    mercurial \
+    make \
+    cmake \
+    openssh-client \
+    gcc \
+    libc-dev \
+    tzdata && \
     # 清除缓存
     rm -rf /tmp/* /var/cache/apk/*
+
+# Git setup to enable having private github.com repos as dependencies
+RUN mkdir /root/.ssh && \
+    chmod 0700 /root/.ssh && \
+    ssh-keyscan -t rsa github.com >> /root/.ssh/known_hosts && \
+    ssh-keyscan -t rsa gitlab.com >> /root/.ssh/known_hosts && \
+    git config --global --add url."git@github.com:".insteadOf "https://github.com/" && \
+    git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+
+# RSA keys can then be added like such:
+# - COPY id_rsa /root/.ssh/id_rsa
+# - COPY id_rsa.pub /root/.ssh/id_rsa.pub
+# - RUN chmod 0600 /root/.ssh/id_rsa
 
 # Moving to installation workdir
 RUN mkdir -p /opt/setup
@@ -70,9 +93,9 @@ WORKDIR /opt/setup
 ENV   PROTOC_ZIP=protoc-3.19.1-linux-x86_64.zip
 RUN curl -OL https://walkman.oss-cn-hangzhou.aliyuncs.com/protocolbuffers/protobuf/${PROTOC_ZIP}
 RUN unzip ${PROTOC_ZIP} && \
-    chmod +x -R bin/ && \
     mv bin/protoc /usr/bin/ && \
-    mv include /usr/include
+    mv include /usr/include && \
+    chmod +x /usr/bin/protoc 
 
 # Download protoc-gen-grpc-web
 # ENV GRPC_WEB=protoc-gen-grpc-web-$protoc_gen_grpc_web_version-linux-x86_64
@@ -98,9 +121,7 @@ RUN go get google.golang.org/protobuf
 RUN go get github.com/golang/protobuf/protoc-gen-go
 RUN go get -u github.com/go-kratos/kratos/cmd/kratos/v2@latest
 
-# # Build application
-# RUN CGO_ENABLED=0 GOOS=linux \
-#    go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o main .
+
 
 # Create project directory (workdir)
 # # Application workdir
@@ -112,7 +133,11 @@ ADD . .
 # Application port (optional)
 EXPOSE 8080
 
+# # Build application
+# RUN CGO_ENABLED=0 GOOS=linux \
+#    go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o main .
+
 # Container start command for development
 # Allows DevSpace to restart the dev container
 # It is also possible to override this in devspace.yaml via images.*.cmd
-CMD ["/bin/sh"]
+# CMD ["/bin/sh"]
